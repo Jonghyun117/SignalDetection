@@ -4,9 +4,10 @@ import numpy as np
 MODULATIONS = [
     'AM', 'FM', 'PM', 'CW',
     '2PSK', '4PSK', '8PSK',
+    'DBPSK', 'DQPSK', 'OQPSK',
     '2FSK', '4FSK', '8FSK',
     '8QAM', '16QAM',
-    '16APSK', '32APSK', '64APSK', '128APSK',
+    '16APSK', '32APSK', '64APSK', '128APSK', '256APSK',
     'OOK'
 ]
 MOD_TO_IDX = {m: i for i, m in enumerate(MODULATIONS)}
@@ -40,6 +41,12 @@ _CONSTELLATIONS = {
     '128APSK': _normalize(_apsk_constellation([(4, 1.0, np.pi/4), (12, 2.4, 0),
                                                (24, 4.3, 0),  (40, 6.5, 0),
                                                (48, 9.0, 0)])),
+    '256APSK': _normalize(_apsk_constellation([(4,  1.0,  np.pi/4),
+                                               (12, 2.4,  0),
+                                               (24, 4.3,  0),
+                                               (48, 6.5,  0),
+                                               (80, 9.0,  0),
+                                               (88, 12.0, 0)])),
     'OOK':     np.array([0+0j, 1+0j]),
 }
 
@@ -70,6 +77,31 @@ def generate_signal(mod, n_samples=1024, sps=8):
     if mod == 'PM':
         msg = np.sin(2 * np.pi * np.random.uniform(0.01, 0.05) * t)
         return np.exp(1j * np.random.uniform(0.5, 2.0) * msg)
+
+    if mod == 'DBPSK':
+        n_sym = int(np.ceil(n_samples / sps)) + 1
+        bits  = np.random.randint(0, 2, n_sym)
+        phases = np.cumsum(bits * np.pi)
+        return np.repeat(np.exp(1j * phases), sps)[:n_samples]
+
+    if mod == 'DQPSK':
+        n_sym = int(np.ceil(n_samples / sps)) + 1
+        diffs = np.random.randint(0, 4, n_sym)
+        phases = np.cumsum(diffs * (np.pi / 2))
+        return np.repeat(np.exp(1j * phases), sps)[:n_samples]
+
+    if mod == 'OQPSK':
+        # Q stream delayed by sps/2 samples relative to I stream
+        half  = sps // 2
+        n_sym = int(np.ceil((n_samples + half) / sps)) + 1
+        const = _CONSTELLATIONS['4PSK']
+        idx   = np.random.randint(0, 4, n_sym)
+        syms  = const[idx]
+        i_stream = np.repeat(np.real(syms), sps)
+        q_stream = np.repeat(np.imag(syms), sps)
+        i_out = i_stream[:n_samples]
+        q_out = np.concatenate([np.zeros(half), q_stream])[:n_samples]
+        return (i_out + 1j * q_out).astype(complex)
 
     if mod in ('2FSK', '4FSK', '8FSK'):
         order = int(mod[0])
