@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from model import AMCNet
 from dataset import AMCDataset, _preprocess
-from simulate import MODULATIONS
+from simulate import CLASSES
 import numpy as np
 
 
@@ -28,10 +28,10 @@ def train(args):
     n_val  = int(0.15 * len(ds))
     tr_ds, val_ds = random_split(ds, [len(ds) - n_val, n_val],
                                  generator=torch.Generator().manual_seed(42))
-    tr_loader  = DataLoader(tr_ds,  batch_size=args.batch, shuffle=True,  num_workers=4)
-    val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=2)
+    tr_loader  = DataLoader(tr_ds,  batch_size=args.batch, shuffle=True,  num_workers=0, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0, pin_memory=True)
 
-    model     = AMCNet(num_classes=len(MODULATIONS)).to(device)
+    model     = AMCNet(num_classes=len(CLASSES)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     criterion = nn.CrossEntropyLoss()
@@ -67,7 +67,7 @@ def adapt_bn(model_path, real_iq_list, output_path):
     All model weights are frozen; only BN running_mean/running_var are updated.
     Typically 200-500 samples per class are sufficient.
     """
-    model = AMCNet(num_classes=len(MODULATIONS))
+    model = AMCNet(num_classes=len(CLASSES))
     model.load_state_dict(torch.load(model_path, map_location='cpu'))
 
     for m in model.modules():
