@@ -2,10 +2,6 @@
 import numpy as np
 from scipy.signal import fftconvolve
 
-# Normalized sample rate assumption: 512 kHz
-# 75 baud  → SPS ≈ 6827
-# 64000 baud → SPS = 8
-FS = 512_000
 
 MODULATIONS = [
     'AM', 'FM', 'PM', 'CW',
@@ -124,7 +120,7 @@ def _sym_to_samples(const, n_samples, sps_int, roll_off):
 
 # ── Signal generation ─────────────────────────────────────────────────────────
 
-def generate_signal(mod, n_samples=1024, sps=8, roll_off=0.35):
+def generate_signal(mod, n_samples=1024, sps=4, roll_off=0.35):
     """Generate baseband IQ for one modulation.
 
     sps      : samples per symbol (float, [8, 6827] for 64k–75 baud at 512 kHz)

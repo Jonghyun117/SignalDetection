@@ -8,7 +8,7 @@ import onnxruntime as ort
 from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType, QuantFormat
 from model import AMCNet
 from dataset import _preprocess
-from simulate import generate_signal, add_awgn, MODULATIONS
+from simulate import generate_signal, add_awgn, MODULATIONS, CLASSES
 
 
 class _ModelWithSoftmax(nn.Module):
@@ -39,7 +39,7 @@ class _CalibReader(CalibrationDataReader):
 
 
 def export(args):
-    model = AMCNet(num_classes=len(MODULATIONS))
+    model = AMCNet(num_classes=len(CLASSES))
     model.load_state_dict(torch.load(args.weights, map_location='cpu'))
     model.eval()
     wrapped = _ModelWithSoftmax(model)

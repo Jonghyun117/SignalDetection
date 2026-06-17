@@ -2,11 +2,12 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from simulate import generate_signal, add_awgn, MODULATIONS, CLASSES, MOD_TO_CLASS_IDX, FS
+from simulate import generate_signal, add_awgn, MODULATIONS, CLASSES, MOD_TO_CLASS_IDX
 
-# SPS range derived from FS=512 kHz and symbol rate [75, 64000] baud
-_LOG_SPS_MIN = np.log(8)      # 64000 baud
-_LOG_SPS_MAX = np.log(6827)   # 75 baud
+# IQ sampling rate = 4 × symbol rate (variable sampling).
+# Symbol rate estimation error ±10% → SPS varies in [3.6, 4.4].
+_SPS_BASE    = 4
+_SPS_ERR_MAX = 0.10
 
 
 def _preprocess(i_arr, q_arr):
@@ -91,8 +92,7 @@ class AMCDataset(Dataset):
     def __getitem__(self, idx):
         mod, snr, label = self._items[idx]
 
-        # Log-uniform symbol rate in [75, 64000] baud → SPS in [8, 6827]
-        sps      = float(np.exp(np.random.uniform(_LOG_SPS_MIN, _LOG_SPS_MAX)))
+        sps      = _SPS_BASE * (1.0 + np.random.uniform(-_SPS_ERR_MAX, _SPS_ERR_MAX))
         roll_off = float(np.random.uniform(0.5, 1.0))
 
         iq    = add_awgn(generate_signal(mod, self.n_samples, sps, roll_off), snr)
