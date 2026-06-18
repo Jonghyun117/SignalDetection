@@ -19,7 +19,7 @@ def _preprocess(i_arr, q_arr):
     Channel 1 (phi): instantaneous phase on DC-removed, normalized signal.
     Channel 2 (dphi): instantaneous frequency (diff of unwrapped phi).
 
-    Returns float32 ndarray of shape (3, 1024).
+    Returns float32 ndarray of shape (3, 2048).
     Must match the logic in inference/preprocess.c exactly.
     """
     # Raw amplitude before DC removal
@@ -41,7 +41,7 @@ def _preprocess(i_arr, q_arr):
     dphi = np.diff(np.unwrap(phi), prepend=phi[0]).astype(np.float32)
     dphi[0] = 0.0
 
-    return np.stack([amp, phi, dphi])   # (3, 1024)
+    return np.stack([amp, phi, dphi])   # (3, 2048)
 
 
 def _augment(i_arr, q_arr):
@@ -73,7 +73,7 @@ def _augment(i_arr, q_arr):
 class AMCDataset(Dataset):
     def __init__(self, n_per_class_per_snr=500,
                  snr_range=(-10, 20), snr_step=2,
-                 n_samples=1024, augment=True):
+                 n_samples=2048, augment=True):
         snrs = list(range(snr_range[0], snr_range[1] + 1, snr_step))
         self.augment   = augment
         self.n_samples = n_samples

@@ -43,14 +43,14 @@ int amc_classifier_init(const char *model_path)
     return 0;
 }
 
-int amc_classifier_run(float features[3][1024], float probs[AMC_NUM_CLASSES])
+int amc_classifier_run(float features[3][2048], float probs[AMC_NUM_CLASSES])
 {
-    int64_t    shape[] = {1, 3, 1024};
+    int64_t    shape[] = {1, 3, 2048};
     OrtValue  *in_val  = NULL, *out_val = NULL;
     OrtStatus *st;
 
     st = g_ort->CreateTensorWithDataAsOrtValue(
-            g_mem, features, 3*1024*sizeof(float),
+            g_mem, features, 3*2048*sizeof(float),
             shape, 3, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &in_val);
     if (st) return -1;
 

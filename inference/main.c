@@ -1,7 +1,7 @@
 /* inference/main.c
  * AMC inference entry point — pure C, no external dependencies.
  *
- * Input  (stdin) : float32 I[1024] then float32 Q[1024], binary, repeated per frame.
+ * Input  (stdin) : float32 I[2048] then float32 Q[2048], binary, repeated per frame.
  * Output (stdout): "<class> conf=X.XXX\n" per frame
  *
  * Vitis 사용법:
@@ -13,7 +13,7 @@
 #include "nn_forward.h"
 #include "nn_weights.h"
 
-#define N 1024
+#define N 2048
 
 int main(void)
 {

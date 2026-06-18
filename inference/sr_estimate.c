@@ -1,13 +1,19 @@
 /* inference/sr_estimate.c
  *
- * Symbol rate estimation from 1024 baseband IQ samples.
+ * Symbol rate estimation from 2048 baseband IQ samples.
  *
- * Two methods selected by AMC class:
+ * Three methods selected by AMC class:
  *
  *   Method A  |r|² power spectrum
- *     For PSK / QAM / APSK / OOK / AM / PM.
+ *     For PSK / QAM / APSK / AM / PM.
  *     RRC pulse shaping creates amplitude ripple at every symbol boundary.
  *     FFT( |r[n]|² − mean ) → spectral line at f_sym.
+ *
+ *   Method A'  |r|² power spectrum with Nyquist-extended search (OQPSK)
+ *     OQPSK Q-branch is delayed by SPS/2 samples.
+ *     In |r|², I² and Q² spectral components at f_sym cancel (phase diff = π).
+ *     The dominant spectral line appears at 2×f_sym.
+ *     Search extended to include Nyquist bin; result is halved to yield f_sym.
  *
  *   Method B  |Δdphi| phase-acceleration spectrum
  *     For FSK (CPFSK has constant envelope, Method A fails).
@@ -22,8 +28,8 @@
 #include "sr_estimate.h"
 #include <math.h>
 
-#define N            1024
-#define N_2          512
+#define N            2048
+#define N_2          1024
 #define QUALITY_THR  3.0f   /* peak must be >3× mean spectral power */
 #define PI           3.14159265358979f
 #define TWO_PI       6.28318530717959f
@@ -31,10 +37,10 @@
 /* ── static work buffers ─────────────────────────────────────────────── */
 static float _re[N], _im[N];
 
-/* ── radix-2 in-place FFT for N=1024 ────────────────────────────────── */
-static void fft1024(float *re, float *im)
+/* ── radix-2 in-place FFT for any power-of-2 N ──────────────────────── */
+static void fft_radix2(float *re, float *im)
 {
-    /* Bit-reversal permutation (10-bit reverse for N=1024) */
+    /* Bit-reversal permutation (log2(N)-bit reverse, works for any power-of-2 N) */
     for (int i = 1, j = 0; i < N; i++) {
         int bit = N >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
@@ -73,27 +79,27 @@ static void hann_window(float *x)
         x[i] *= 0.5f * (1.0f - cosf(TWO_PI * i / (N - 1)));
 }
 
-/* Find peak bin in |FFT|² over k=1..N_2-1 (skip DC).
+/* Find peak bin in |FFT|² over k=1..end (inclusive).
  * Also computes mean of remaining bins for quality check.
  * Returns best_k; sets *quality = peak_power / mean_power. */
-static int peak_bin(float *quality_out)
+static int peak_bin_range(int end, float *quality_out)
 {
     int   best_k   = 1;
     float best_mag = _re[1]*_re[1] + _im[1]*_im[1];
     float sum_mag  = best_mag;
 
-    for (int k = 2; k < N_2; k++) {
+    for (int k = 2; k <= end; k++) {
         float m = _re[k]*_re[k] + _im[k]*_im[k];
         sum_mag += m;
         if (m > best_mag) { best_mag = m; best_k = k; }
     }
 
-    float mean_mag  = (sum_mag - best_mag) / (float)(N_2 - 2);
+    float mean_mag  = (sum_mag - best_mag) / (float)(end - 1);
     *quality_out    = (mean_mag > 0.0f) ? best_mag / mean_mag : 0.0f;
     return best_k;
 }
 
-/* ── Method A: power spectrum ────────────────────────────────────────── */
+/* ── Method A: power spectrum (PSK / QAM / APSK) ────────────────────── */
 static float estimate_power(const float *I, const float *Q)
 {
     float mean = 0.0f;
@@ -103,19 +109,64 @@ static float estimate_power(const float *I, const float *Q)
         mean  += _re[n];
     }
     mean /= N;
-    for (int n = 0; n < N; n++) _re[n] -= mean;  /* remove DC */
+    for (int n = 0; n < N; n++) _re[n] -= mean;
 
     hann_window(_re);
-    fft1024(_re, _im);
+    fft_radix2(_re, _im);
 
     float quality;
-    int k = peak_bin(&quality);
+    int k = peak_bin_range(N_2 - 1, &quality);
     return (quality >= QUALITY_THR) ? (float)k / N : 0.0f;
 }
 
+/* ── Method A': I/Q-separated power spectrum for OQPSK ──────────────── */
+/* OQPSK Q-branch delayed by SPS/2 → in |I|²+|Q|², the f_sym spectral
+ * components cancel (phase diff = π at f_sym · T_sym/2 = π/2, multiplied
+ * by 2 from the squaring: net phase = π → destructive).
+ * Using the incoherent sum |FFT(I²)|² + |FFT(Q²)|² avoids cancellation:
+ * both channels individually peak at f_sym, and magnitudes add. */
+static float estimate_power_oqpsk(const float *I, const float *Q)
+{
+    float mean_i = 0.0f, mean_q = 0.0f;
+    for (int n = 0; n < N; n++) {
+        _re[n]  = I[n]*I[n];
+        mean_i += _re[n];
+    }
+    mean_i /= N;
+    for (int n = 0; n < N; n++) { _re[n] -= mean_i; _im[n] = 0.0f; }
+    hann_window(_re);
+    fft_radix2(_re, _im);
+
+    /* Store |FFT(I²)|² in a temporary array using the second half of _im */
+    /* Reuse _im as temp: store real^2+imag^2 in first N_2 slots */
+    static float _tmp[N_2];
+    for (int k = 0; k < N_2; k++) _tmp[k] = _re[k]*_re[k] + _im[k]*_im[k];
+
+    /* Compute FFT(Q²) */
+    for (int n = 0; n < N; n++) {
+        _re[n]  = Q[n]*Q[n];
+        mean_q += _re[n];
+    }
+    mean_q /= N;
+    for (int n = 0; n < N; n++) { _re[n] -= mean_q; _im[n] = 0.0f; }
+    hann_window(_re);
+    fft_radix2(_re, _im);
+
+    /* Incoherent sum: |FFT(I²)|² + |FFT(Q²)|² */
+    int   best_k   = 1;
+    float best_sum = _tmp[1] + _re[1]*_re[1] + _im[1]*_im[1];
+    float sum_all  = best_sum;
+    for (int k = 2; k < N_2; k++) {
+        float m = _tmp[k] + _re[k]*_re[k] + _im[k]*_im[k];
+        sum_all += m;
+        if (m > best_sum) { best_sum = m; best_k = k; }
+    }
+    float mean_rest = (sum_all - best_sum) / (float)(N_2 - 2);
+    float quality   = (mean_rest > 0.0f) ? best_sum / mean_rest : 0.0f;
+    return (quality >= QUALITY_THR) ? (float)best_k / N : 0.0f;
+}
+
 /* ── Method C: envelope spectrum (OOK) ──────────────────────────────── */
-/* OOK alternates between 0 and A: |r| transitions are cleaner than |r|²
- * because |r|² = 0 for "off" symbols creates a sparse random signal. */
 static float estimate_envelope(const float *I, const float *Q)
 {
     float mean = 0.0f;
@@ -128,31 +179,28 @@ static float estimate_envelope(const float *I, const float *Q)
     for (int n = 0; n < N; n++) _re[n] -= mean;
 
     hann_window(_re);
-    fft1024(_re, _im);
+    fft_radix2(_re, _im);
 
     float quality;
-    int k = peak_bin(&quality);
+    int k = peak_bin_range(N_2 - 1, &quality);
     return (quality >= QUALITY_THR) ? (float)k / N : 0.0f;
 }
 
 /* ── Method B: phase-acceleration spectrum (FSK) ─────────────────────── */
 static float estimate_fsk(const float *I, const float *Q)
 {
-    /* Compute |dphi[n] - dphi[n-1]| — spikes at symbol transitions */
     float prev_dphi = 0.0f, mean = 0.0f;
 
     for (int n = 1; n < N; n++) {
-        /* dphi[n] = arg( z[n] · conj(z[n-1]) ) */
         float cr  =  I[n]*I[n-1] + Q[n]*Q[n-1];
         float ci  =  Q[n]*I[n-1] - I[n]*Q[n-1];
         float dphi = atan2f(ci, cr);
 
         float dd = dphi - prev_dphi;
-        /* Wrap Δdphi to [-π, π] */
         if (dd >  PI) dd -= TWO_PI;
         if (dd < -PI) dd += TWO_PI;
 
-        _re[n-1]  = (dd < 0.0f) ? -dd : dd;  /* |Δdphi| */
+        _re[n-1]  = (dd < 0.0f) ? -dd : dd;
         mean     += _re[n-1];
         prev_dphi = dphi;
     }
@@ -163,10 +211,10 @@ static float estimate_fsk(const float *I, const float *Q)
     for (int n = 0; n < N; n++) { _re[n] -= mean; _im[n] = 0.0f; }
 
     hann_window(_re);
-    fft1024(_re, _im);
+    fft_radix2(_re, _im);
 
     float quality;
-    int k = peak_bin(&quality);
+    int k = peak_bin_range(N_2 - 1, &quality);
     return (quality >= QUALITY_THR) ? (float)k / N : 0.0f;
 }
 
@@ -178,12 +226,10 @@ static float estimate_fsk(const float *I, const float *Q)
  *   7=OQPSK  8=2FSK  9=4FSK  10=8FSK  11=8QAM  12=16QAM
  *   13=16APSK 14=32APSK 15=64APSK 16=128APSK 17=256APSK  18=OOK
  */
-float amc_sr_estimate(const float i_in[1024], const float q_in[1024],
+float amc_sr_estimate(const float i_in[2048], const float q_in[2048],
                       int class_idx)
 {
-    /* Analog / sparse-amplitude classes: symbol rate not estimable.
-     *   0=AM  1=FM  2=PM  3=CW  18=OOK
-     * Caller should keep current sampling rate unchanged. */
+    /* Analog / CW / OOK: symbol rate not estimable. */
     if (class_idx == 0 || class_idx == 1 || class_idx == 2 ||
         class_idx == 3 || class_idx == 18)
         return 0.0f;
@@ -192,7 +238,10 @@ float amc_sr_estimate(const float i_in[1024], const float q_in[1024],
     if (class_idx == 8 || class_idx == 9 || class_idx == 10)
         return estimate_fsk(i_in, q_in);
 
-    /* PSK / QAM / APSK: power spectrum method
-     * Expected accuracy: 4-6% avg error, ≤10% max (within ±10% SPS budget) */
+    /* OQPSK: power spectrum with Nyquist-extended search + halved result */
+    if (class_idx == 7)
+        return estimate_power_oqpsk(i_in, q_in);
+
+    /* PSK / QAM / APSK: standard power spectrum method */
     return estimate_power(i_in, q_in);
 }

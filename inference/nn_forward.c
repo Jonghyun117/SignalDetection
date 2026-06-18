@@ -2,7 +2,7 @@
  * Pure-C AMCNet inference — no ONNX Runtime, no external dependencies.
  * Requires only <math.h> (expf, sqrtf).
  *
- * Network topology (input: float[3][1024]):
+ * Network topology (input: float[3][2048]):
  *   Conv1d(3→32,k=7)  + BN + ReLU + MaxPool2
  *   Conv1d(32→64,k=5) + BN + ReLU + MaxPool2
  *   Conv1d(64→128,k=5)+ BN + ReLU + MaxPool2
@@ -14,10 +14,10 @@
 #include <math.h>
 
 /* ── working buffers (static: safe for bare-metal) ────────────────────── */
-/* buf_a holds post-conv tensors  (max: 32×1018 = 32 576) */
-/* buf_b holds post-pool tensors  (max: 64×252  = 16 128) */
-#define BUF_A 33000
-#define BUF_B 17000
+/* buf_a holds post-conv tensors  (max: 32×2042 = 65 344) */
+/* buf_b holds post-pool tensors  (max: 32×1021 = 32 672) */
+#define BUF_A 66000
+#define BUF_B 33000
 static float buf_a[BUF_A];
 static float buf_b[BUF_B];
 static float fc_vec[128];
@@ -109,33 +109,33 @@ static void softmax(float *x, int n)
 }
 
 /* ── forward pass ─────────────────────────────────────────────────────── */
-int amc_forward(const float features[3][1024], float *probs_out)
+int amc_forward(const float features[3][2048], float *probs_out)
 {
     /* Layer 0: Conv(3→32,k=7) + BN + ReLU + MaxPool2
-     *   in:  (3, 1024)   out_conv: (32, 1018)   out_pool: (32, 509)  */
-    conv1d(&features[0][0], 3, 1024, L0_CONV_W, L0_CONV_B, 32, 7, buf_a);
-    bn_relu(buf_a, 32, 1018, L0_BN_SCALE, L0_BN_SHIFT);
-    maxpool2(buf_a, 32, 1018, buf_b);
+     *   in:  (3, 2048)   out_conv: (32, 2042)   out_pool: (32, 1021) */
+    conv1d(&features[0][0], 3, 2048, L0_CONV_W, L0_CONV_B, 32, 7, buf_a);
+    bn_relu(buf_a, 32, 2042, L0_BN_SCALE, L0_BN_SHIFT);
+    maxpool2(buf_a, 32, 2042, buf_b);
 
     /* Layer 1: Conv(32→64,k=5) + BN + ReLU + MaxPool2
-     *   in:  (32, 509)   out_conv: (64, 505)   out_pool: (64, 252)  */
-    conv1d(buf_b, 32, 509, L1_CONV_W, L1_CONV_B, 64, 5, buf_a);
-    bn_relu(buf_a, 64, 505, L1_BN_SCALE, L1_BN_SHIFT);
-    maxpool2(buf_a, 64, 505, buf_b);
+     *   in:  (32, 1021)  out_conv: (64, 1017)   out_pool: (64, 508)  */
+    conv1d(buf_b, 32, 1021, L1_CONV_W, L1_CONV_B, 64, 5, buf_a);
+    bn_relu(buf_a, 64, 1017, L1_BN_SCALE, L1_BN_SHIFT);
+    maxpool2(buf_a, 64, 1017, buf_b);
 
     /* Layer 2: Conv(64→128,k=5) + BN + ReLU + MaxPool2
-     *   in:  (64, 252)   out_conv: (128, 248)  out_pool: (128, 124) */
-    conv1d(buf_b, 64, 252, L2_CONV_W, L2_CONV_B, 128, 5, buf_a);
-    bn_relu(buf_a, 128, 248, L2_BN_SCALE, L2_BN_SHIFT);
-    maxpool2(buf_a, 128, 248, buf_b);
+     *   in:  (64, 508)   out_conv: (128, 504)   out_pool: (128, 252) */
+    conv1d(buf_b, 64, 508, L2_CONV_W, L2_CONV_B, 128, 5, buf_a);
+    bn_relu(buf_a, 128, 504, L2_BN_SCALE, L2_BN_SHIFT);
+    maxpool2(buf_a, 128, 504, buf_b);
 
     /* Layer 3: Conv(128→128,k=3) + BN + ReLU
-     *   in:  (128, 124)  out_conv: (128, 122)                        */
-    conv1d(buf_b, 128, 124, L3_CONV_W, L3_CONV_B, 128, 3, buf_a);
-    bn_relu(buf_a, 128, 122, L3_BN_SCALE, L3_BN_SHIFT);
+     *   in:  (128, 252)  out_conv: (128, 250)                        */
+    conv1d(buf_b, 128, 252, L3_CONV_W, L3_CONV_B, 128, 3, buf_a);
+    bn_relu(buf_a, 128, 250, L3_BN_SCALE, L3_BN_SHIFT);
 
     /* Global average pool → (128,) */
-    global_avgpool(buf_a, 128, 122, fc_vec);
+    global_avgpool(buf_a, 128, 250, fc_vec);
 
     /* FC0: Linear(128→64) + ReLU */
     float fc0_out[64];

@@ -46,7 +46,7 @@ def export(args):
     wrapped.eval()
 
     fp32_path = args.output.replace('.onnx', '_fp32.onnx')
-    dummy = torch.randn(1, 3, 1024)
+    dummy = torch.randn(1, 3, 2048)
     torch.onnx.export(
         wrapped, dummy, fp32_path,
         input_names=['input'], output_names=['output'],
@@ -67,7 +67,7 @@ def export(args):
 
     # 현재 머신 레이턴시 참고용
     sess = ort.InferenceSession(args.output)
-    x    = np.random.randn(1, 3, 1024).astype(np.float32)
+    x    = np.random.randn(1, 3, 2048).astype(np.float32)
     sess.run(None, {'input': x})       # warm-up
     t0 = time.perf_counter()
     for _ in range(100):

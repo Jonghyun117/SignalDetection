@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 **SignalDetection** — ZCU208-1 보드 PS(ARM Cortex-A53)에서 동작하는 자동 변조 방식 분류(AMC) 시스템.  
-PL에서 생성된 길이 1024 IQ 데이터를 받아 17개 변조 방식으로 분류한다.
+PL에서 생성된 길이 2048 IQ 데이터를 받아 17개 변조 방식으로 분류한다.
 
 ## Commands
 
@@ -44,7 +44,7 @@ gcc -o tests/test_preprocess tests/test_preprocess.c inference/preprocess.c \
     -I inference/ -lm -std=c11
 ./tests/test_preprocess
 
-# 실행 (stdin: float32 I[1024] + Q[1024] binary)
+# 실행 (stdin: float32 I[2048] + Q[2048] binary)
 ./inference/build/amc_infer model/amc_model.onnx
 ```
 
@@ -55,7 +55,7 @@ gcc -o tests/test_preprocess tests/test_preprocess.c inference/preprocess.c \
 **Python 학습 파이프라인** (`training/`):
 - `simulate.py` → `dataset.py` → `model.py` → `train.py` → `export.py`
 - `simulate.py`의 `generate_signal()`이 17종 변조 IQ를 생성, `add_awgn()`으로 SNR 제어
-- `dataset.py`의 `_preprocess(i, q)` → `(3, 1024)` 순시 특징(진폭/위상/주파수) 변환. **C 전처리와 동일 로직 유지 필수**
+- `dataset.py`의 `_preprocess(i, q)` → `(3, 2048)` 순시 특징(진폭/위상/주파수) 변환. **C 전처리와 동일 로직 유지 필수**
 - `export.py`는 모델을 `_ModelWithSoftmax`로 래핑해 ONNX에 Softmax 포함
 
 **C 추론 파이프라인** (`inference/`):

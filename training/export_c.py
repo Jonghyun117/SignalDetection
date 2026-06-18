@@ -79,7 +79,7 @@ def export(weights_path, out_path):
 
     lines.append('#endif /* NN_WEIGHTS_H */')
 
-    with open(out_path, 'w') as f:
+    with open(out_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
     print(f'Written: {out_path}')
     print(f'  Classes : {len(CLASSES)}')

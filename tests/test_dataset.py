@@ -9,12 +9,12 @@ from simulate import MODULATIONS
 def test_dataset_output_shape():
     ds = AMCDataset(n_per_class_per_snr=2, augment=False)
     x, label = ds[0]
-    assert x.shape == (3, 1024), f"Expected (3, 1024), got {x.shape}"
+    assert x.shape == (3, 2048), f"Expected (3, 2048), got {x.shape}"
     assert 0 <= label < len(MODULATIONS)
 
 def test_preprocess_power_normalized():
-    i_arr = np.random.randn(1024).astype(np.float32) * 5.0
-    q_arr = np.random.randn(1024).astype(np.float32) * 5.0
+    i_arr = np.random.randn(2048).astype(np.float32) * 5.0
+    q_arr = np.random.randn(2048).astype(np.float32) * 5.0
     feat = _preprocess(i_arr, q_arr)
     # amplitude channel: mean(A²) should be ~1
     mean_power = np.mean(feat[0] ** 2)

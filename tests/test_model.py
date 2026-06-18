@@ -9,7 +9,7 @@ N = len(MODULATIONS)  # 21
 
 def test_forward_shape():
     model = AMCNet(num_classes=N)
-    out = model(torch.randn(4, 3, 1024))
+    out = model(torch.randn(4, 3, 2048))
     assert out.shape == (4, N), f"Expected (4,{N}), got {out.shape}"
 
 def test_param_count():
@@ -20,7 +20,7 @@ def test_param_count():
 def test_eval_deterministic():
     model = AMCNet(num_classes=N)
     model.eval()
-    x = torch.randn(1, 3, 1024)
+    x = torch.randn(1, 3, 2048)
     with torch.no_grad():
         out1 = model(x)
         out2 = model(x)

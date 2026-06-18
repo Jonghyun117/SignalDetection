@@ -7,9 +7,9 @@
 #endif
 
 void amc_preprocess(const float *i_in, const float *q_in,
-                    float features[3][1024], int n)
+                    float features[3][2048], int n)
 {
-    float i_buf[1024], q_buf[1024], phi[1024];
+    float i_buf[2048], q_buf[2048], phi[2048];
     int t;
 
     /* Channel 0: raw amplitude BEFORE DC removal.

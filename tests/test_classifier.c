@@ -19,8 +19,8 @@ static void test_init_and_destroy(void) {
 static void test_output_is_probability(void) {
     amc_classifier_init(MODEL_PATH);
 
-    float features[3][1024] = {{0}};
-    for (int t = 0; t < 1024; t++) features[0][t] = 1.0f;
+    float features[3][2048] = {{0}};
+    for (int t = 0; t < 2048; t++) features[0][t] = 1.0f;
 
     float probs[AMC_NUM_CLASSES];
     int pred = amc_classifier_run(features, probs);

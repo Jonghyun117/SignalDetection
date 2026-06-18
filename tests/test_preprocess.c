@@ -4,7 +4,7 @@
 #include <math.h>
 #include "../inference/preprocess.h"
 
-#define N 1024
+#define N 2048
 
 static void fail(const char *msg, float got, float exp) {
     fprintf(stderr, "FAIL %s: expected %.6f, got %.6f\n", msg, exp, got);
