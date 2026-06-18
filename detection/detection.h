@@ -39,11 +39,10 @@ typedef struct {
     int16_t q[WB_N_CHANNELS];   /* Q15: imag parts of 8 ch FFT output     */
 } WbDmaBin;                     /* sizeof = 32 bytes                       */
 
-/* Narrowband single-channel complex FFT output: I-block then Q-block.    */
+/* Narrowband single-channel complex FFT output: interleaved [I0,Q0,I1,Q1,...] */
 typedef struct {
-    int16_t i[NB_N_POINTS];     /* Q15 real                               */
-    int16_t q[NB_N_POINTS];     /* Q15 imag                               */
-} NbDmaBlock;                   /* sizeof = 8192 bytes                     */
+    int16_t iq[NB_N_POINTS * 2]; /* Q15, even=I odd=Q                     */
+} NbDmaBlock;                    /* sizeof = 8192 bytes                    */
 
 /* ── Signal descriptor ────────────────────────────────────────────────── */
 typedef struct {

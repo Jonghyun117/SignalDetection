@@ -159,12 +159,15 @@ def pack_wb(spectrum: np.ndarray) -> bytes:
 
 
 def pack_nb(spectrum: np.ndarray) -> bytes:
-    """Pack complex[2048] → [I(2048×int16), Q(2048×int16)]"""
+    """Pack complex[2048] → interleaved [I0,Q0,I1,Q1,...] int16 Q15"""
     max_mag = np.abs(spectrum).max()
     s = spectrum / (max_mag * 1.01) if max_mag > 0 else spectrum
     re_i16 = np.clip(s.real * INT16_MAX, -INT16_MAX, INT16_MAX).astype(np.int16)
     im_i16 = np.clip(s.imag * INT16_MAX, -INT16_MAX, INT16_MAX).astype(np.int16)
-    return re_i16.tobytes() + im_i16.tobytes()
+    interleaved = np.empty(NB_N_POINTS * 2, dtype=np.int16)
+    interleaved[0::2] = re_i16
+    interleaved[1::2] = im_i16
+    return interleaved.tobytes()
 
 
 # ── Main ──────────────────────────────────────────────────────────────────

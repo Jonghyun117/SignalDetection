@@ -57,8 +57,8 @@ int nb_detect(const NbDmaBlock *dma_buf, float rf_center_hz,
     float pfa = params ? params->alpha : NB_CFAR_PFA;
 
     for (int k = 0; k < NB_N_POINTS; k++) {
-        float re = q15_to_float(dma_buf->i[k]);
-        float im = q15_to_float(dma_buf->q[k]);
+        float re = q15_to_float(dma_buf->iq[k * 2]);
+        float im = q15_to_float(dma_buf->iq[k * 2 + 1]);
         _nb_power[k] = re * re + im * im;
     }
 
