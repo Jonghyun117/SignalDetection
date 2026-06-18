@@ -7,3 +7,4 @@ model/*.pth
 model/*_fp32.onnx
 *.egg-info/
 .pytest_cache/
+detection/testdata/
