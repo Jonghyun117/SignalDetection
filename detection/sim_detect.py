@@ -139,22 +139,22 @@ def nb_detect(spectrum: np.ndarray, rf_tune: float,
 
 # ── Binary packers ────────────────────────────────────────────────────────
 def pack_wb(spectrum: np.ndarray) -> bytes:
-    """Pack complex[32768] → 4096 × [I_ch0..7(int16), Q_ch0..7(int16)]"""
-    max_mag = np.abs(spectrum).max()
-    if max_mag > 0:
-        s = spectrum / (max_mag * 1.01)
+    """Pack complex[32768] → 4096 × [I_ch0..7(uint16 power), Q_ch0..7(uint16 0)]
+    Matches WbDmaBin: I = linear power magnitude (uint16), Q = 0."""
+    power = (spectrum.real ** 2 + spectrum.imag ** 2).astype(np.float32)
+    max_p = power.max()
+    if max_p > 0:
+        power_u16 = np.clip(power / max_p * 30000.0, 0, 65535).astype(np.uint16)
     else:
-        s = spectrum
-    re_i16 = np.clip(s.real * INT16_MAX, -INT16_MAX, INT16_MAX).astype(np.int16)
-    im_i16 = np.clip(s.imag * INT16_MAX, -INT16_MAX, INT16_MAX).astype(np.int16)
+        power_u16 = np.zeros(WB_TOTAL_BINS, dtype=np.uint16)
 
     buf = bytearray(WB_BINS_PER_CH * 32)
     for lb in range(WB_BINS_PER_CH):
         off = lb * 32
         for ch in range(WB_N_CH):
             g = ch * WB_BINS_PER_CH + lb
-            struct.pack_into('<h', buf, off + ch * 2,       re_i16[g])
-            struct.pack_into('<h', buf, off + 16 + ch * 2, im_i16[g])
+            struct.pack_into('<H', buf, off + ch * 2,       power_u16[g])
+            struct.pack_into('<H', buf, off + 16 + ch * 2, 0)            # Q=0
     return bytes(buf)
 
 
